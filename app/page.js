@@ -371,17 +371,9 @@ export default function Home() {
 useEffect(() => {
     if (!supabase) { setLoading(false); return; }
     
-    const checkUser = async () => {
+const checkUser = async () => {
       try {
-        // Add timeout to prevent hanging
-        const timeoutPromise = new Promise((_, reject) => 
-          setTimeout(() => reject(new Error('Auth timeout')), 30000)
-        );
-        
-        const authPromise = supabase.auth.getUser();
-        const { data: { user }, error: authError } = await Promise.race([authPromise, timeoutPromise]);
-        
-        if (authError) console.error('Auth check error:', authError);
+        const { data: { user } } = await supabase.auth.getUser();
         
         if (user) {
           console.log('User found:', user.email);
