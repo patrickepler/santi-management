@@ -52,9 +52,30 @@ function LoginScreen({ onLogin }) {
     if (!supabase) { setError('Database not configured'); return; }
     setLoading(true);
     setError('');
-    const { error } = await supabase.auth.signInWithPassword({ email, password });
-    if (error) { setError(error.message); setLoading(false); }
-    else { onLogin(); }
+    
+    try {
+      // Add timeout to prevent hanging
+      const timeoutPromise = new Promise((_, reject) => 
+        setTimeout(() => reject(new Error('Login timeout - please check your connection')), 10000)
+      );
+      
+      const authPromise = supabase.auth.signInWithPassword({ email, password });
+      const { data, error } = await Promise.race([authPromise, timeoutPromise]);
+      
+      if (error) { 
+        setError(error.message); 
+        setLoading(false); 
+      } else if (data?.user) {
+        // Verify user exists before reload
+        onLogin();
+      } else {
+        setError('Login failed - please try again');
+        setLoading(false);
+      }
+    } catch (err) {
+      setError(err.message || 'Login failed');
+      setLoading(false);
+    }
   };
 
   const handleRegister = async (e) => {
@@ -347,26 +368,64 @@ export default function Home() {
     { id: 'done', title: 'Done' },
   ];
 
-  useEffect(() => {
+useEffect(() => {
     if (!supabase) { setLoading(false); return; }
     
     const checkUser = async () => {
       try {
-        const { data: { user } } = await supabase.auth.getUser();
+        // Add timeout to prevent hanging
+        const timeoutPromise = new Promise((_, reject) => 
+          setTimeout(() => reject(new Error('Auth timeout')), 5000)
+        );
+        
+        const authPromise = supabase.auth.getUser();
+        const { data: { user }, error: authError } = await Promise.race([authPromise, timeoutPromise]);
+        
+        if (authError) console.error('Auth check error:', authError);
+        
         if (user) {
-          const { data: profile } = await supabase.from('profiles').select('*').eq('id', user.id).maybeSingle();
-          if (profile) setCurrentUser(profile);
+          console.log('User found:', user.email);
+          const { data: profile, error: profileError } = await supabase.from('profiles').select('*').eq('id', user.id).maybeSingle();
+          if (profileError) console.error('Profile error:', profileError);
+          if (profile) {
+            console.log('Profile loaded:', profile.username);
+            setCurrentUser(profile);
+          } else {
+            console.warn('No profile found, creating one...');
+            // Auto-create profile if missing
+            const newProfile = {
+              id: user.id,
+              email: user.email,
+              username: user.email.split('@')[0],
+              role: 'worker',
+              avatar_url: `https://ui-avatars.com/api/?name=${encodeURIComponent(user.email.split('@')[0])}&background=0D9488&color=fff`
+            };
+            const { data: created } = await supabase.from('profiles').insert(newProfile).select().single();
+            if (created) setCurrentUser(created);
+          }
+        } else {
+          console.log('No authenticated user');
         }
-      } catch (err) { console.error('Auth error:', err); }
+      } catch (err) { 
+        console.error('Auth error:', err);
+      }
       setLoading(false);
     };
     
     checkUser();
     
     const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
+      console.log('Auth event:', event, session?.user?.email);
       if (event === 'SIGNED_IN' && session?.user) {
-        const { data: profile } = await supabase.from('profiles').select('*').eq('id', session.user.id).maybeSingle();
-        if (profile) setCurrentUser(profile);
+        try {
+          const { data: profile, error } = await supabase.from('profiles').select('*').eq('id', session.user.id).maybeSingle();
+          if (error) console.error('Profile fetch error:', error);
+          if (profile) setCurrentUser(profile);
+          else console.warn('No profile found for user:', session.user.id);
+        } catch (err) {
+          console.error('Profile fetch failed:', err);
+        }
+        setLoading(false);
       } else if (event === 'SIGNED_OUT') {
         setCurrentUser(null);
       }
