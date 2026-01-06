@@ -348,32 +348,35 @@ export default function Home() {
   ];
 
 useEffect(() => {
-    console.log('DEBUG: useEffect started, supabase:', !!supabase);
-    if (!supabase) { console.log('DEBUG: no supabase'); setLoading(false); return; }
+    if (!supabase) { setLoading(false); return; }
     
     const checkUser = async () => {
       try {
-        console.log('DEBUG: calling getUser');
-        const { data: { user }, error: userError } = await supabase.auth.getUser();
-        console.log('DEBUG: getUser result', user?.id, userError);
+        // Add timeout to prevent hanging
+        const timeoutPromise = new Promise((_, reject) => 
+          setTimeout(() => reject(new Error('Auth timeout')), 5000)
+        );
+        
+        const authPromise = supabase.auth.getUser();
+        const { data: { user } } = await Promise.race([authPromise, timeoutPromise]);
+        
         if (user) {
-          console.log('DEBUG: calling profiles select');
-          const { data: profile, error: profileError } = await supabase.from('profiles').select('*').eq('id', user.id).maybeSingle();
-          console.log('DEBUG: profile result', profile, profileError);
+          const { data: profile } = await supabase.from('profiles').select('*').eq('id', user.id).maybeSingle();
           if (profile) setCurrentUser(profile);
         }
-      } catch (err) { console.error('DEBUG: Auth error:', err); }
-      console.log('DEBUG: setting loading false');
+      } catch (err) { 
+        console.error('Auth error:', err);
+      }
       setLoading(false);
     };
     
     checkUser();
     
     const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
-      console.log('DEBUG: auth state change', event);
       if (event === 'SIGNED_IN' && session?.user) {
         const { data: profile } = await supabase.from('profiles').select('*').eq('id', session.user.id).maybeSingle();
         if (profile) setCurrentUser(profile);
+        setLoading(false);
       } else if (event === 'SIGNED_OUT') {
         setCurrentUser(null);
       }
