@@ -56,7 +56,7 @@ function LoginScreen({ onLogin }) {
     try {
       // Add timeout to prevent hanging
       const timeoutPromise = new Promise((_, reject) => 
-        setTimeout(() => reject(new Error('Login timeout - please check your connection')), 10000)
+        setTimeout(() => reject(new Error('Login timeout - please check your connection')), 30000)
       );
       
       const authPromise = supabase.auth.signInWithPassword({ email, password });
@@ -375,7 +375,7 @@ useEffect(() => {
       try {
         // Add timeout to prevent hanging
         const timeoutPromise = new Promise((_, reject) => 
-          setTimeout(() => reject(new Error('Auth timeout')), 5000)
+          setTimeout(() => reject(new Error('Auth timeout')), 30000)
         );
         
         const authPromise = supabase.auth.getUser();
