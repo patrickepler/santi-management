@@ -347,23 +347,30 @@ export default function Home() {
     { id: 'done', title: 'Done' },
   ];
 
-  useEffect(() => {
-    if (!supabase) { setLoading(false); return; }
+useEffect(() => {
+    console.log('DEBUG: useEffect started, supabase:', !!supabase);
+    if (!supabase) { console.log('DEBUG: no supabase'); setLoading(false); return; }
     
     const checkUser = async () => {
       try {
-        const { data: { user } } = await supabase.auth.getUser();
+        console.log('DEBUG: calling getUser');
+        const { data: { user }, error: userError } = await supabase.auth.getUser();
+        console.log('DEBUG: getUser result', user?.id, userError);
         if (user) {
-          const { data: profile } = await supabase.from('profiles').select('*').eq('id', user.id).maybeSingle();
+          console.log('DEBUG: calling profiles select');
+          const { data: profile, error: profileError } = await supabase.from('profiles').select('*').eq('id', user.id).maybeSingle();
+          console.log('DEBUG: profile result', profile, profileError);
           if (profile) setCurrentUser(profile);
         }
-      } catch (err) { console.error('Auth error:', err); }
+      } catch (err) { console.error('DEBUG: Auth error:', err); }
+      console.log('DEBUG: setting loading false');
       setLoading(false);
     };
     
     checkUser();
     
     const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
+      console.log('DEBUG: auth state change', event);
       if (event === 'SIGNED_IN' && session?.user) {
         const { data: profile } = await supabase.from('profiles').select('*').eq('id', session.user.id).maybeSingle();
         if (profile) setCurrentUser(profile);
