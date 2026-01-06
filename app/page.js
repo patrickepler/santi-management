@@ -368,6 +368,11 @@ export default function Home() {
 
   // Check auth on load
   useEffect(() => {
+    if (!supabase) {
+      setLoading(false);
+      return;
+    }
+
     const checkUser = async () => {
       try {
         const profile = await getCurrentUser();
